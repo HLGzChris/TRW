@@ -6,12 +6,12 @@ ARG NODE_VERSION=22
 ARG N8N_VERSION=snapshot
 ARG LAUNCHER_VERSION=1.1.3
 ARG TARGETPLATFORM
-RUN echo "DEBUG: TARGETPLATFORM is -> $TARGETPLATFORM <-" # <--- ADD THIS LINE
 
 # ==============================================================================
 # STAGE 1: Builder for Base Dependencies
 # ==============================================================================
 FROM node:${NODE_VERSION}-alpine AS builder
+RUN echo "DEBUG: TARGETPLATFORM is -> $TARGETPLATFORM <-" # <--- ADDED THIS LINE HERE
 
 # Install fonts
 RUN \
