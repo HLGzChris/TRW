@@ -19,6 +19,7 @@ test-workflows
 # ============================================================
 # ❌ Git-related files (except required GitHub actions/scripts)
 # ============================================================
+
 .git
 .github
 !.github/scripts
@@ -26,6 +27,7 @@ test-workflows
 # ============================================================
 # ✅ Explicitly include Docker files needed for Render build
 # ============================================================
+
 !docker/
 !docker/images/
 !docker/images/n8n/
