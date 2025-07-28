@@ -110,7 +110,17 @@ WORKDIR /home/node
 COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
 # Copy launcher binaries
 COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-# Copy entrypoint and task runners from the repo-copy stage (absolute path from its root)
+# Copy compiled n8n application from build-app stage
+COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
+# Copy launcher binaries
+COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
+
+# Diagnostic: List contents and permissions of the target directory
+RUN ls -la /repo_root/docker/images/n8n/ # <--- ADD THIS LINE
+RUN ls -la /repo_root/docker/images/n8n/docker-entrypoint.sh # <--- ADD THIS LINE
+RUN ls -la /repo_root/docker/images/n8n/n8n-task-runners.json # <--- ADD THIS LINE
+
+# Now, these COPY commands are relative to /n8n inside the build-app stage
 COPY --from=repo-copy /repo_root/docker/images/n8n/docker-entrypoint.sh /
 COPY --from=repo-copy /repo_root/docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
 
