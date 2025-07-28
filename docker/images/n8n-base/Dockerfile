@@ -80,7 +80,7 @@ RUN set -e; \
 # ==============================================================================
 # STAGE 4: Final Runtime Image (combines all built components)
 # ==============================================================================
-FROM builder AS runtime # Use the builder stage as the base for runtime
+FROM node:${NODE_VERSION}-alpine AS runtime
 
 ARG N8N_VERSION
 ARG N8N_RELEASE_TYPE=dev
