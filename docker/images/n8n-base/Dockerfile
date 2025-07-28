@@ -1,7 +1,8 @@
 # Dockerfile for n8n.io
 # Source: https://github.com/n8n-io/n8n/blob/master/docker/images/n8n-base/Dockerfile
 # Advanced Multi-Stage Build for Render.com deployment from repository root (Root Directory: ./)
-# This Dockerfile handles n8n's monorepo structure by copying the entire repo in an early stage.
+# This Dockerfile handles n8n's monorepo structure by copying the entire repo in an early stage,
+# and implementing a flattening fix for problematic nested COPY operations.
 
 ARG NODE_VERSION=22
 ARG N8N_VERSION=snapshot
@@ -9,12 +10,19 @@ ARG LAUNCHER_VERSION=1.1.3
 ARG TARGETPLATFORM=linux/amd64 # Default to amd64 for common cloud platforms
 
 # ==============================================================================
-# STAGE 0: Copy Entire Repository
+# STAGE 0: Copy Entire Repository & Flatten Problematic Files
 # This stage copies the full build context (your GitHub repo root) into a known location.
-# This makes all monorepo files accessible to subsequent stages.
+# It also flattens specific deeply nested files into a temporary top-level directory
+# to avoid BuildKit's COPY --from issues with complex monorepo paths.
 # ==============================================================================
 FROM alpine:latest AS repo-copy
-COPY . /repo_root
+WORKDIR /repo_root
+COPY . .
+
+# Flatten problematic nested files into a temporary directory for easier copying later
+RUN mkdir -p /repo_root/tmp-n8n-files && \
+    cp /repo_root/docker/images/n8n/docker-entrypoint.sh /repo_root/tmp-n8n-files/ && \
+    cp /repo_root/docker/images/n8n/n8n-task-runners.json /repo_root/tmp-n8n-files/
 
 # ==============================================================================
 # STAGE 1: Builder for Base Dependencies
@@ -53,7 +61,7 @@ RUN rm -rf /tmp/* /root/.npm /root/.cache/node /opt/yarn* && \
 
 # ==============================================================================
 # STAGE 2: Build the App (n8n application compilation)
-# This stage now copies the ENTIRE repository (from repo-copy) into its working directory.
+# This stage copies the ENTIRE repository (from repo-copy) into its working directory.
 # This ensures pnpm can find package.json and all monorepo packages.
 # ==============================================================================
 FROM node:${NODE_VERSION} AS build-app
@@ -64,7 +72,7 @@ COPY --from=repo-copy /repo_root /n8n
 # Ensure correct ownership for subsequent pnpm commands
 RUN chown -R node:node /n8n
 
-USER node # Switch to non-root user for pnpm install
+USER root # Stay as root for build commands as suggested
 
 # Install dependencies and build the app
 # Removed --frozen-lockfile to allow pnpm to update lockfile if needed
@@ -76,7 +84,8 @@ RUN corepack enable && \
 # ==============================================================================
 # STAGE 3: Task Runner Launcher (downloads pre-built binaries)
 # ==============================================================================
-FROM alpine:3.22.0 AS launcher-downloader
+FROM alpine:3.22.0 AS launcher-downloader-stage
+
 ARG TARGETPLATFORM
 ARG LAUNCHER_VERSION
 
@@ -109,20 +118,10 @@ WORKDIR /home/node
 # Copy compiled n8n application from build-app stage
 COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
 # Copy launcher binaries
-COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-# Copy compiled n8n application from build-app stage
-COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
-# Copy launcher binaries
-COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-
-# Diagnostic: List contents and permissions of the target directory
-RUN ls -la /repo_root/docker/images/n8n/ # <--- ADD THIS LINE
-RUN ls -la /repo_root/docker/images/n8n/docker-entrypoint.sh # <--- ADD THIS LINE
-RUN ls -la /repo_root/docker/images/n8n/n8n-task-runners.json # <--- ADD THIS LINE
-
-# Now, these COPY commands are relative to /n8n inside the build-app stage
-COPY --from=repo-copy /repo_root/docker/images/n8n/docker-entrypoint.sh /
-COPY --from=repo-copy /repo_root/docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
+COPY --from=launcher-downloader-stage /launcher-bin/* /usr/local/bin/
+# Copy entrypoint and task runners from the flattened location in repo-copy stage
+COPY --from=repo-copy /repo_root/tmp-n8n-files/docker-entrypoint.sh /
+COPY --from=repo-copy /repo_root/tmp-n8n-files/n8n-task-runners.json /etc/n8n-task-runners.json
 
 RUN cd /usr/local/lib/node_modules/n8n && \
     npm rebuild sqlite3 --unsafe-perm && \
