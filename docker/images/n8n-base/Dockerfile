@@ -1,6 +1,6 @@
 # Dockerfile for n8n.io
 # Source: https://github.com/n8n-io/n8n/blob/master/docker/images/n8n-base/Dockerfile
-# Adjusted for Render.com deployment from source
+# Adjusted for Render.com deployment from repository root (Root Directory: ./)
 
 ARG NODE_VERSION=22
 ARG N8N_VERSION=snapshot
@@ -35,7 +35,6 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositori
         jq=1.8.0-r0
 
 # Update npm, install full-icu and npm@11.4.2 to fix brace-expansion vulnerability
-# Remove npm update after vulnerability is fixed in in node image
 RUN npm install -g full-icu@1.5.0 npm@11.4.2
 
 RUN rm -rf /tmp/* /root/.npm /root/.cache/node /opt/yarn* && \
@@ -43,11 +42,13 @@ RUN rm -rf /tmp/* /root/.npm /root/.cache/node /opt/yarn* && \
 
 # ==============================================================================
 # STAGE 2: Build the App (n8n application compilation)
+# This stage now copies the ENTIRE repository to /n8n
 # ==============================================================================
 FROM node:${NODE_VERSION} AS build-app
 
 WORKDIR /n8n
-COPY . .
+# COPY the entire repository from the build context (which is the repo root on Render)
+COPY --chown=node:node . /n8n
 
 # Install dependencies and build the app
 RUN corepack enable && \
@@ -80,7 +81,7 @@ RUN set -e; \
 # ==============================================================================
 # STAGE 4: Final Runtime Image (combines all built components)
 # ==============================================================================
-FROM node:${NODE_VERSION}-alpine AS runtime
+FROM node:${NODE_VERSION}-alpine AS runtime # Use the same base image as builder stage
 
 ARG N8N_VERSION
 ARG N8N_RELEASE_TYPE=dev
@@ -94,8 +95,9 @@ WORKDIR /home/node
 # Use compiled code from the build-app stage
 COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
 COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-COPY docker/images/n8n/docker-entrypoint.sh /
-COPY docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
+# Now, these COPY commands are relative to /n8n inside the build-app stage
+COPY --from=build-app /n8n/docker/images/n8n/docker-entrypoint.sh /
+COPY --from=build-app /n8n/docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
 
 RUN cd /usr/local/lib/node_modules/n8n && \
     npm rebuild sqlite3 --unsafe-perm && \
