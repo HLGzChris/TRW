@@ -94,9 +94,8 @@ WORKDIR /home/node
 # Use compiled code from the build-app stage
 COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
 COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-# Copy from the original build context root (where the repository was cloned)
-COPY ./docker/images/n8n/docker-entrypoint.sh /
-COPY ./docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
+COPY docker/images/n8n/docker-entrypoint.sh /
+COPY docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
 
 RUN cd /usr/local/lib/node_modules/n8n && \
     npm rebuild sqlite3 --unsafe-perm && \
