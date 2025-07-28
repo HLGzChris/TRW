@@ -12,10 +12,9 @@ packages/**/*.test.*
 .github
 !.github/scripts
 *.tsbuildinfo
-docker/compose
-!docker/images/n8n-base/Dockerfile
-!docker/images/n8n/docker-entrypoint.sh
-!docker/images/n8n/n8n-task-runners.json
+# REMOVED: docker/compose  <-- DELETE THIS LINE IF PRESENT
+# REMOVED: docker/**/Dockerfile <-- DELETE THIS LINE
 .vscode
 cypress
 test-workflows
+!docker/images/n8n/ # <--- ADD THIS LINE (explicitly include the n8n image directory)
