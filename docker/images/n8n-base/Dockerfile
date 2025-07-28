@@ -65,11 +65,7 @@ ARG TARGETPLATFORM
 ARG LAUNCHER_VERSION
 
 RUN set -e; \
-    case "$TARGETPLATFORM" in \
-        "linux/amd64") ARCH_NAME="amd64" ;; \
-        "linux/arm64") ARCH_NAME="arm64" ;; \
-        *) echo "Unsupported platform: $TARGETPLATFORM" && exit 1 ;; \
-    esac; \
+    ARCH_NAME="amd64"; \  # <--- NEW LINE: Directly set architecture
     mkdir /launcher-temp && cd /launcher-temp; \
     wget -q "https://github.com/n8n-io/task-runner-launcher/releases/download/${LAUNCHER_VERSION}/task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz"; \
     wget -q "https://github.com/n8n-io/task-runner-launcher/releases/download/${LAUNCHER_VERSION}/task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz.sha256"; \
@@ -78,7 +74,6 @@ RUN set -e; \
     mkdir -p /launcher-bin; \
     tar xzf task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz -C /launcher-bin; \
     cd / && rm -rf /launcher-temp
-
 # ==============================================================================
 # STAGE 4: Final Runtime Image (combines all built components)
 # ==============================================================================
