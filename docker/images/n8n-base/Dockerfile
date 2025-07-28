@@ -1,17 +1,27 @@
 # Dockerfile for n8n.io
 # Source: https://github.com/n8n-io/n8n/blob/master/docker/images/n8n-base/Dockerfile
-# Adjusted for Render.com deployment from repository root (Root Directory: ./)
+# Advanced Multi-Stage Build for Render.com deployment from repository root (Root Directory: ./)
+# This Dockerfile handles n8n's monorepo structure by copying the entire repo in an early stage.
 
 ARG NODE_VERSION=22
 ARG N8N_VERSION=snapshot
 ARG LAUNCHER_VERSION=1.1.3
-ARG TARGETPLATFORM
+ARG TARGETPLATFORM=linux/amd64 # Default to amd64 for common cloud platforms
+
+# ==============================================================================
+# STAGE 0: Copy Entire Repository
+# This stage copies the full build context (your GitHub repo root) into a known location.
+# This makes all monorepo files accessible to subsequent stages.
+# ==============================================================================
+FROM alpine:latest AS repo-copy
+COPY . /repo_root
 
 # ==============================================================================
 # STAGE 1: Builder for Base Dependencies
+# Installs system-level dependencies and fonts.
 # ==============================================================================
 FROM node:${NODE_VERSION}-alpine AS builder
-RUN echo "DEBUG: TARGETPLATFORM is -> $TARGETPLATFORM <-" # <--- ADDED THIS LINE HERE
+RUN echo "DEBUG: TARGETPLATFORM is -> $TARGETPLATFORM <-" # Debug output for platform
 
 # Install fonts
 RUN \
@@ -21,7 +31,7 @@ RUN \
     apk del .build-deps-fonts && \
     find /usr/share/fonts/truetype/msttcorefonts/ -type l -exec unlink {} \;
 
-# Install essential OS dependencies (removed problematic version pins)
+# Install essential OS dependencies (removed problematic version pins for core tools)
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
     apk update && \
     apk add --no-cache \
@@ -35,7 +45,7 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositori
         libc6-compat=1.1.0-r4 \
         jq=1.8.0-r0
 
-# Update npm, install full-icu and npm@11.4.2 to fix brace-expansion vulnerability
+# Update npm, install full-icu (global)
 RUN npm install -g full-icu@1.5.0 npm@11.4.2
 
 RUN rm -rf /tmp/* /root/.npm /root/.cache/node /opt/yarn* && \
@@ -43,27 +53,34 @@ RUN rm -rf /tmp/* /root/.npm /root/.cache/node /opt/yarn* && \
 
 # ==============================================================================
 # STAGE 2: Build the App (n8n application compilation)
-# This stage now copies the ENTIRE repository to /n8n
+# This stage now copies the ENTIRE repository (from repo-copy) into its working directory.
+# This ensures pnpm can find package.json and all monorepo packages.
 # ==============================================================================
 FROM node:${NODE_VERSION} AS build-app
 
 WORKDIR /n8n
-# COPY the entire repository from the build context (which is the repo root on Render)
-COPY --chown=node:node . /n8n
+# Copy the entire repository from the repo-copy stage into /n8n
+COPY --from=repo-copy /repo_root /n8n
+# Ensure correct ownership for subsequent pnpm commands
+RUN chown -R node:node /n8n
+
+USER node # Switch to non-root user for pnpm install
 
 # Install dependencies and build the app
+# Removed --frozen-lockfile to allow pnpm to update lockfile if needed
 RUN corepack enable && \
     corepack prepare pnpm@latest --activate && \
     pnpm install && \
     pnpm build --verbosity 1
 
 # ==============================================================================
-# STAGE 3: Task Runner Launcher (for n8n's internal task runners)
+# STAGE 3: Task Runner Launcher (downloads pre-built binaries)
 # ==============================================================================
 FROM alpine:3.22.0 AS launcher-downloader
 ARG TARGETPLATFORM
 ARG LAUNCHER_VERSION
 
+# Force ARCH_NAME to amd64 as TARGETPLATFORM is unreliable in some environments
 RUN set -e; \
     ARCH_NAME="amd64"; \
     mkdir /launcher-temp && cd /launcher-temp; \
@@ -74,10 +91,11 @@ RUN set -e; \
     mkdir -p /launcher-bin; \
     tar xzf task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz -C /launcher-bin; \
     cd / && rm -rf /launcher-temp
+
 # ==============================================================================
 # STAGE 4: Final Runtime Image (combines all built components)
 # ==============================================================================
-FROM node:${NODE_VERSION}-alpine AS runtime 
+FROM node:${NODE_VERSION}-alpine AS runtime
 
 ARG N8N_VERSION
 ARG N8N_RELEASE_TYPE=dev
@@ -88,12 +106,13 @@ ENV SHELL=/bin/sh
 
 WORKDIR /home/node
 
-# Use compiled code from the build-app stage
+# Copy compiled n8n application from build-app stage
 COPY --from=build-app /n8n /usr/local/lib/node_modules/n8n
+# Copy launcher binaries
 COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-# Now, these COPY commands are relative to /n8n inside the build-app stage
-COPY --from=build-app /n8n/docker/images/n8n/docker-entrypoint.sh /
-COPY --from=build-app /n8n/docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
+# Copy entrypoint and task runners from the repo-copy stage (absolute path from its root)
+COPY --from=repo-copy /repo_root/docker/images/n8n/docker-entrypoint.sh /
+COPY --from=repo-copy /repo_root/docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
 
 RUN cd /usr/local/lib/node_modules/n8n && \
     npm rebuild sqlite3 --unsafe-perm && \
