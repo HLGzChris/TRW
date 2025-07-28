@@ -1,8 +1,10 @@
-# Ignore general clutter
+# ============================================================
+# ❌ Ignore unnecessary files to slim down Docker build context
+# ============================================================
+
 **/*.md
 **/.env
 .cache
-assets
 node_modules
 packages/node-dev
 packages/**/node_modules
@@ -14,12 +16,16 @@ packages/**/*.test.*
 cypress
 test-workflows
 
-# Ignore Git
+# ============================================================
+# ❌ Git-related files (except required GitHub actions/scripts)
+# ============================================================
 .git
 .github
 !.github/scripts
 
-# ✅ Explicitly include Docker files we need (in this order)
+# ============================================================
+# ✅ Explicitly include Docker files needed for Render build
+# ============================================================
 !docker/
 !docker/images/
 !docker/images/n8n/
