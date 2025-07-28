@@ -13,7 +13,9 @@ packages/**/*.test.*
 !.github/scripts
 *.tsbuildinfo
 docker/compose
-docker/**/Dockerfile
+!docker/images/n8n-base/Dockerfile
+!docker/images/n8n/docker-entrypoint.sh
+!docker/images/n8n/n8n-task-runners.json
 .vscode
 cypress
 test-workflows
