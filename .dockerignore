@@ -1,3 +1,4 @@
+# Ignore general clutter
 **/*.md
 **/.env
 .cache
@@ -8,15 +9,19 @@ packages/**/node_modules
 packages/**/dist
 packages/**/.turbo
 packages/**/*.test.*
-.git
-.github
-!.github/scripts
 *.tsbuildinfo
 .vscode
 cypress
 test-workflows
 
-# ✅ Ensure the critical docker files are included
+# Ignore Git
+.git
+.github
+!.github/scripts
+
+# ✅ Explicitly include Docker files we need (in this order)
+!docker/
+!docker/images/
 !docker/images/n8n/
 !docker/images/n8n/docker-entrypoint.sh
 !docker/images/n8n/n8n-task-runners.json
