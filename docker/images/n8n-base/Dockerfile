@@ -69,10 +69,6 @@ FROM node:${NODE_VERSION} AS build-app
 WORKDIR /n8n
 # Copy the entire repository from the repo-copy stage into /n8n
 COPY --from=repo-copy /repo_root /n8n
-# Ensure correct ownership for subsequent pnpm commands
-RUN chown -R node:node /n8n
-
-USER root # Stay as root for build commands as suggested
 
 # Install dependencies and build the app
 # Removed --frozen-lockfile to allow pnpm to update lockfile if needed
