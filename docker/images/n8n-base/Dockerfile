@@ -65,7 +65,7 @@ ARG TARGETPLATFORM
 ARG LAUNCHER_VERSION
 
 RUN set -e; \
-    ARCH_NAME="amd64"; \  # <--- NEW LINE: Directly set architecture
+    ARCH_NAME="amd64"; \ # <--- REMOVE THIS COMMENT AND ANY SPACES AFTER THE "\"
     mkdir /launcher-temp && cd /launcher-temp; \
     wget -q "https://github.com/n8n-io/task-runner-launcher/releases/download/${LAUNCHER_VERSION}/task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz"; \
     wget -q "https://github.com/n8n-io/task-runner-launcher/releases/download/${LAUNCHER_VERSION}/task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz.sha256"; \
